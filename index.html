@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="미디어파이프를 사용해 한 손의 손가락 마디마다 좌표를 인식하고 그를 이용해 그림을 그리는 예제. 스페이스바를 누르면 그리기모드 토글이고 백스페이스는 전체 캔바스 지우기">
+  <title>미디어파이프를 사용한 웹캠예제</title>
+  <style>
+    body{margin:0; background: black;}
+    #reddot{width: 50px; height: 50px; background: red; border-radius: 50%;position: absolute; left:-100px; top:-100px; z-index: 9999;}
+    #greendot{width: 10px; height: 10px; background: #0f0; border-radius: 50%;position: absolute; left:-100px; top:-100px; z-index: 9999;}
+    #videoElement{width: 100vw; height:auto;transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+  -moz-transform: rotateY(180deg);display: none;}
+
+  </style>
+</head>
+<body>
+<!-- 브러시역할을 하는 레드닷   -->
+<div id="reddot"></div>
+<!-- 어디에그려지는지 표시하는 그린포인트 -->
+<div id="greendot"></div>
+<!-- 웹캠이미지 가져올 비디오 -->
+<video id='videoElement'></video>
+
+
+<!-- 우선 다음 네가지를 임포트 -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+
+
+<script type="text/javascript">
+
+//스페이스바를 누르면 그리기모드 아니면 그리지않기를 토글할때 쓸 변수
+let drawing = false;
+
+window.onload = () => {initCamera();};
+async function initCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    videoElement.srcObject = stream;
+    videoElement.play();
+    const camera = new Camera(videoElement, {
+        onFrame: async () => {
+            await hands.send({ image: videoElement });
+        }
+    });
+    camera.start();
+}
+
+const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+
+hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+});
+
+hands.onResults(onResults);
+function onResults(results) {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const hand = results.multiHandLandmarks[0];
+
+        //인식되면 여기서 시작함 여기에 반복작업을 코딩하면 됨
+
+        //hand로 손가락 마디마디좌표를 받아오다. 
+        //https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker?hl=ko 요 링크에 가면 몇번이 손가락 어디인지 번호가 나옴
+        //8번이 검지손가락 끝이다!!
+        const fingerX = hand[8].x * 100; //가로 좌표받아와서 100vw기준 환산
+        const fingerY = hand[8].y * 75; //세로 좌표받아와서 환산(캠화면 4:3)
+
+        //먼저 안내 표시가 될 녹색 닷의 좌표 지정해줌
+        greendot.style.left = (100 - fingerX) + "vw";
+        greendot.style.top = fingerY + "vw";
+
+        //스페이스바를 눌러 드로잉모드가 되면
+        if(drawing){
+          //레드닷을 t로 불러서 s로 복제(계속 복제됨 > 선으로 보임)
+          let t = document.querySelector('#reddot');
+          let s = t.cloneNode(true);
+          //나중에 지우기를 위해 클래스이름도 넣어주자.
+          s.className = "rdot";
+          //좌표 지정하고(요건 녹색 닷이랑 같다)
+          s.style.left = (100 - fingerX) + "vw";
+          s.style.top = fingerY + "vw";
+          //마지막으로 바디에 붙임.
+          document.body.appendChild(s);  
+        }
+    }
+}
+
+window.onkeydown = function(e){
+  console.log(e.keyCode);
+  //스페이스바를 누르면 그리기모드 활성/비활성 토글
+  if(e.keyCode == 32){
+    if(!drawing){
+      drawing = true;
+    }else{
+      drawing = false;
+    }
+  //백스페이스 키를 누르면 .rdot클래스 전체선택 및 삭제
+  }else if(e.keyCode == 8){
+    let t = document.querySelectorAll(".rdot");
+    for(let i=0; i<t.length; i++){
+        t[i].remove();
+    }
+  }
+  
+}
+
+
+</script>
+</body>
+</html>
